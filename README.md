@@ -57,17 +57,17 @@ The scraper supports the following command-line arguments:
 
 1. **Scrape Craigslist Only**:
    ```bash
-   python scraper.py -l sfbay -o output.csv
+   python gcdatascraper.py -l sfbay -o output.csv
    ```
 
 2. **Scrape Yelp and Nextdoor**:
    ```bash
-   python scraper.py -l sfbay -o output.csv --platforms yelp nextdoor
+   python gcdatascraper.py -l sfbay -o output.csv --platforms yelp nextdoor
    ```
 
 3. **Scrape All Platforms**:
    ```bash
-   python scraper.py -l sfbay -o output.csv --platforms craigslist yelp nextdoor google
+   python gcdatascraper.py -l sfbay -o output.csv --platforms craigslist yelp nextdoor google
    ```
 
 ---
