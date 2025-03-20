@@ -4,6 +4,7 @@ import logging
 import argparse
 import csv
 from typing import List, Set, Tuple, Optional, Dict
+from datetime import datetime
 
 from requests import Session
 from bs4 import BeautifulSoup
@@ -17,10 +18,10 @@ from selenium import webdriver  # For platforms requiring headless browsing
 
 # Constants
 BASE_URLS = {
-    'craigslist': 'https://{loc}.craigslist.org/d/services/search/bbb?query=handyman&sort=rel',
-    'yelp': 'https://www.yelp.com/search?find_desc=handyman&find_loc={loc}',
-    'nextdoor': 'https://nextdoor.com/search/?query=handyman&location={loc}',
-    'google': 'https://www.google.com/maps/search/handyman+{loc}'
+    'C': 'https://{loc}.craigslist.org/d/services/search/bbb?query=handyman&sort=rel',
+    'Y': 'https://www.yelp.com/search?find_desc=handyman&find_loc={loc}',
+    'N': 'https://nextdoor.com/search/?query=handyman&location={loc}',
+    'G': 'https://www.google.com/maps/search/handyman+{loc}'
 }
 RESULTS_PER_PAGE = 120
 
@@ -44,7 +45,7 @@ class MLStripper(HTMLParser):
 def strip_tags(html: str) -> str:
     s = MLStripper()
     s.feed(html)
-    return s.getvalue()
+    return s.get_data()
 
 class BaseScraper:
     def __init__(self, loc: str, output: str):
@@ -60,17 +61,16 @@ class BaseScraper:
 
     def write_to_csv(self, data: List[Dict[str, str]]) -> None:
         with open(self.output, mode='a', newline='', encoding='utf-8') as out_file:
-            fieldnames = ['platform', 'post_datetime', 'post_link', 'lat', 'lng', 'acc', 'post_contacts', 'post_keywords']
+            fieldnames = ['business_name', 'source_url', 'platform_code', 'date_posted', 'latitude', 'longitude', 'address', 'contact_info', 'keywords_services']
             writer = csv.DictWriter(out_file, fieldnames=fieldnames)
             if out_file.tell() == 0:  # Write header only if file is empty
                 writer.writeheader()
             writer.writerows(data)
 
 class CraigslistScraper(BaseScraper):
-    def __init__(self, loc: str, output: str, page: int = 0):
+    def __init__(self, loc: str, output: str):
         super().__init__(loc, output)
-        self.querystring = BASE_URLS['craigslist'].format(loc=loc)
-        self.pagenum = page
+        self.querystring = BASE_URLS['C'].format(loc=loc)
 
     def parse_posts(self) -> None:
         # Existing Craigslist scraping logic
@@ -79,7 +79,7 @@ class CraigslistScraper(BaseScraper):
 class YelpScraper(BaseScraper):
     def __init__(self, loc: str, output: str):
         super().__init__(loc, output)
-        self.querystring = BASE_URLS['yelp'].format(loc=loc)
+        self.querystring = BASE_URLS['Y'].format(loc=loc)
 
     def parse_posts(self) -> None:
         # Use Selenium or Yelp API to fetch and parse data
@@ -102,7 +102,7 @@ class YelpScraper(BaseScraper):
 class NextdoorScraper(BaseScraper):
     def __init__(self, loc: str, output: str):
         super().__init__(loc, output)
-        self.querystring = BASE_URLS['nextdoor'].format(loc=loc)
+        self.querystring = BASE_URLS['N'].format(loc=loc)
 
     def parse_posts(self) -> None:
         # Use Selenium to handle login and scrape data
@@ -126,7 +126,7 @@ class NextdoorScraper(BaseScraper):
 class GoogleReviewsScraper(BaseScraper):
     def __init__(self, loc: str, output: str):
         super().__init__(loc, output)
-        self.querystring = BASE_URLS['google'].format(loc=loc)
+        self.querystring = BASE_URLS['G'].format(loc=loc)
 
     def parse_posts(self) -> None:
         # Use Selenium or Google Maps API to fetch reviews
@@ -149,20 +149,23 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Handyman app data scraping tool from multiple platforms')
     parser.add_argument('-l', type=str, required=True, help='Location code [sfbay|charlotte|seattle]')
     parser.add_argument('-o', type=str, required=True, help='Path to output csv file')
-    parser.add_argument('-p', type=int, default=0, required=False, help='Page number to resume from last session (Craigslist only)')
-    parser.add_argument('--platforms', nargs='+', default=['craigslist'], choices=['craigslist', 'yelp', 'nextdoor', 'google'], help='Platforms to scrape')
+    parser.add_argument('-d', type=str, required=True, help='Date in MMDDYY format, prior to which all the information will be scraped')
+    parser.add_argument('-p', type=str, required=True, help='Platforms to scrape (Y for Yelp, C for Craigslist, N for Nextdoor, G for Google Maps)')
 
     args = parser.parse_args()
 
-    if 'craigslist' in args.platforms:
-        scraper = CraigslistScraper(loc=args.l, output=args.o, page=args.p)
+    # Generate output file name
+    output_file = f"{args.l}_{args.d}.csv"
+
+    if 'C' in args.p:
+        scraper = CraigslistScraper(loc=args.l, output=output_file)
         scraper.parse_posts()
-    if 'yelp' in args.platforms:
-        scraper = YelpScraper(loc=args.l, output=args.o)
+    if 'Y' in args.p:
+        scraper = YelpScraper(loc=args.l, output=output_file)
         scraper.parse_posts()
-    if 'nextdoor' in args.platforms:
-        scraper = NextdoorScraper(loc=args.l, output=args.o)
+    if 'N' in args.p:
+        scraper = NextdoorScraper(loc=args.l, output=output_file)
         scraper.parse_posts()
-    if 'google' in args.platforms:
-        scraper = GoogleReviewsScraper(loc=args.l, output=args.o)
+    if 'G' in args.p:
+        scraper = GoogleReviewsScraper(loc=args.l, output=output_file)
         scraper.parse_posts()
