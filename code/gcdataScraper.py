@@ -48,9 +48,10 @@ def strip_tags(html: str) -> str:
     return s.get_data()
 
 class BaseScraper:
-    def __init__(self, loc: str, output: str):
+    def __init__(self, loc: str, output: str, limit: Optional[int] = None):
         self.loc = loc
         self.output = output
+        self.limit = limit  # Number of latest records to scrape
         self.session = Session()
         self.nlp = spacy.load("en_core_web_md")
 
@@ -68,8 +69,8 @@ class BaseScraper:
             writer.writerows(data)
 
 class CraigslistScraper(BaseScraper):
-    def __init__(self, loc: str, output: str):
-        super().__init__(loc, output)
+    def __init__(self, loc: str, output: str, limit: Optional[int] = None):
+        super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['C'].format(loc=loc)
 
     def parse_posts(self) -> None:
@@ -77,8 +78,8 @@ class CraigslistScraper(BaseScraper):
         pass
 
 class YelpScraper(BaseScraper):
-    def __init__(self, loc: str, output: str):
-        super().__init__(loc, output)
+    def __init__(self, loc: str, output: str, limit: Optional[int] = None):
+        super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['Y'].format(loc=loc)
 
     def parse_posts(self) -> None:
@@ -93,15 +94,15 @@ class YelpScraper(BaseScraper):
         # Parse Yelp results and extract data
         results = soup.find_all('div', class_='yelp-result-class')  # Update with actual class
         data = []
-        for result in results:
+        for result in results[:self.limit] if self.limit else results:  # Apply limit if provided
             # Extract data and append to `data`
             pass
         self.write_to_csv(data)
         driver.quit()
 
 class NextdoorScraper(BaseScraper):
-    def __init__(self, loc: str, output: str):
-        super().__init__(loc, output)
+    def __init__(self, loc: str, output: str, limit: Optional[int] = None):
+        super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['N'].format(loc=loc)
 
     def parse_posts(self) -> None:
@@ -117,15 +118,15 @@ class NextdoorScraper(BaseScraper):
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         results = soup.find_all('div', class_='nextdoor-result-class')  # Update with actual class
         data = []
-        for result in results:
+        for result in results[:self.limit] if self.limit else results:  # Apply limit if provided
             # Extract data and append to `data`
             pass
         self.write_to_csv(data)
         driver.quit()
 
 class GoogleReviewsScraper(BaseScraper):
-    def __init__(self, loc: str, output: str):
-        super().__init__(loc, output)
+    def __init__(self, loc: str, output: str, limit: Optional[int] = None):
+        super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['G'].format(loc=loc)
 
     def parse_posts(self) -> None:
@@ -139,7 +140,7 @@ class GoogleReviewsScraper(BaseScraper):
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         results = soup.find_all('div', class_='google-review-class')  # Update with actual class
         data = []
-        for result in results:
+        for result in results[:self.limit] if self.limit else results:  # Apply limit if provided
             # Extract data and append to `data`
             pass
         self.write_to_csv(data)
@@ -151,6 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', type=str, required=True, help='Path to output csv file')
     parser.add_argument('-d', type=str, required=True, help='Date in MMDDYY format, prior to which all the information will be scraped')
     parser.add_argument('-p', type=str, required=True, help='Platforms to scrape (Y for Yelp, C for Craigslist, N for Nextdoor, G for Google Maps)')
+    parser.add_argument('-n', type=int, required=False, help='Number of latest records to scrape (defaults to all if not provided)')
 
     args = parser.parse_args()
 
@@ -158,14 +160,14 @@ if __name__ == '__main__':
     output_file = f"{args.l}_{args.d}.csv"
 
     if 'C' in args.p:
-        scraper = CraigslistScraper(loc=args.l, output=output_file)
+        scraper = CraigslistScraper(loc=args.l, output=output_file, limit=args.n)
         scraper.parse_posts()
     if 'Y' in args.p:
-        scraper = YelpScraper(loc=args.l, output=output_file)
+        scraper = YelpScraper(loc=args.l, output=output_file, limit=args.n)
         scraper.parse_posts()
     if 'N' in args.p:
-        scraper = NextdoorScraper(loc=args.l, output=output_file)
+        scraper = NextdoorScraper(loc=args.l, output=output_file, limit=args.n)
         scraper.parse_posts()
     if 'G' in args.p:
-        scraper = GoogleReviewsScraper(loc=args.l, output=output_file)
+        scraper = GoogleReviewsScraper(loc=args.l, output=output_file, limit=args.n)
         scraper.parse_posts()
