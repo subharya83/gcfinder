@@ -5,6 +5,7 @@ import argparse
 import csv
 from typing import List, Set, Tuple, Optional, Dict
 from datetime import datetime
+import os
 
 from requests import Session
 from bs4 import BeautifulSoup
@@ -27,6 +28,22 @@ RESULTS_PER_PAGE = 120
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Ensure the weights directory exists and set SPACY_DATA_DIR
+weights_dir = "./weights"
+os.makedirs(weights_dir, exist_ok=True)
+os.environ["SPACY_DATA_DIR"] = weights_dir
+
+# Download the spaCy model if it doesn't exist
+if not os.path.exists(os.path.join(weights_dir, "en_core_web_md")):
+    print(f"Downloading spaCy model to {weights_dir}...")
+    os.system("python -m spacy download en_core_web_md")
+else:
+    print(f"spaCy model already exists in {weights_dir}.")
+
+# Load the spaCy model
+nlp = spacy.load("en_core_web_md")
+print("spaCy model loaded successfully.")
 
 class MLStripper(HTMLParser):
     def __init__(self):
@@ -53,7 +70,7 @@ class BaseScraper:
         self.output = output
         self.limit = limit  # Number of latest records to scrape
         self.session = Session()
-        self.nlp = spacy.load("en_core_web_md")
+        print(f"Initialized scraper for location: {loc}, output: {output}, limit: {limit}")
 
     def get_hotwords(self, text: str) -> Set[str]:
         pos_tag = ['PROPN', 'ADJ', 'NOUN']
@@ -61,19 +78,24 @@ class BaseScraper:
         return {token.text for token in doc if token.pos_ in pos_tag and token.text not in self.nlp.Defaults.stop_words and token.text not in punctuation}
 
     def write_to_csv(self, data: List[Dict[str, str]]) -> None:
+        print(f"Writing {len(data)} records to {self.output}...")
         with open(self.output, mode='a', newline='', encoding='utf-8') as out_file:
             fieldnames = ['business_name', 'source_url', 'platform_code', 'date_posted', 'latitude', 'longitude', 'address', 'contact_info', 'keywords_services']
             writer = csv.DictWriter(out_file, fieldnames=fieldnames)
             if out_file.tell() == 0:  # Write header only if file is empty
+                print("Writing CSV header...")
                 writer.writeheader()
             writer.writerows(data)
+        print(f"Data successfully written to {self.output}.")
 
 class CraigslistScraper(BaseScraper):
     def __init__(self, loc: str, output: str, limit: Optional[int] = None):
         super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['C'].format(loc=loc)
+        print(f"Initialized Craigslist scraper with URL: {self.querystring}")
 
     def parse_posts(self) -> None:
+        print("Parsing Craigslist posts...")
         # Existing Craigslist scraping logic
         pass
 
@@ -81,8 +103,10 @@ class YelpScraper(BaseScraper):
     def __init__(self, loc: str, output: str, limit: Optional[int] = None):
         super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['Y'].format(loc=loc)
+        print(f"Initialized Yelp scraper with URL: {self.querystring}")
 
     def parse_posts(self) -> None:
+        print("Parsing Yelp posts...")
         # Use Selenium or Yelp API to fetch and parse data
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')  # Run in headless mode
@@ -104,8 +128,10 @@ class NextdoorScraper(BaseScraper):
     def __init__(self, loc: str, output: str, limit: Optional[int] = None):
         super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['N'].format(loc=loc)
+        print(f"Initialized Nextdoor scraper with URL: {self.querystring}")
 
     def parse_posts(self) -> None:
+        print("Parsing Nextdoor posts...")
         # Use Selenium to handle login and scrape data
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
@@ -128,8 +154,10 @@ class GoogleReviewsScraper(BaseScraper):
     def __init__(self, loc: str, output: str, limit: Optional[int] = None):
         super().__init__(loc, output, limit)
         self.querystring = BASE_URLS['G'].format(loc=loc)
+        print(f"Initialized Google Reviews scraper with URL: {self.querystring}")
 
     def parse_posts(self) -> None:
+        print("Parsing Google Reviews posts...")
         # Use Selenium or Google Maps API to fetch reviews
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
@@ -158,6 +186,7 @@ if __name__ == '__main__':
 
     # Generate output file name
     output_file = f"{args.l}_{args.d}.csv"
+    print(f"Output file: {output_file}")
 
     if 'C' in args.p:
         scraper = CraigslistScraper(loc=args.l, output=output_file, limit=args.n)
