@@ -96,9 +96,40 @@ class CraigslistScraper(BaseScraper):
 
     def parse_posts(self) -> None:
         print("Parsing Craigslist posts...")
-        # Existing Craigslist scraping logic
-        pass
+        response = self.session.get(self.querystring)
+        soup = BeautifulSoup(response.content, 'html.parser')
 
+        # Find all the search result items
+        results = soup.find_all('li', class_='cl-static-search-result')
+        data = []
+
+        for result in results[:self.limit] if self.limit else results:
+            title = result.find('div', class_='title').text.strip()
+            link = result.find('a')['href']
+            location = result.find('div', class_='location').text.strip() if result.find('div', class_='location') else ''
+            price = result.find('div', class_='price').text.strip() if result.find('div', class_='price') else ''
+
+            # Extract keywords/services from the title
+            keywords_services = self.get_hotwords(title)
+
+            # Create a dictionary for the current result
+            post_data = {
+                'business_name': title,
+                'source_url': link,
+                'platform_code': 'C',  # Craigslist
+                'date_posted': datetime.now().strftime('%Y-%m-%d'),  # Assuming current date for simplicity
+                'latitude': '',  # Not available in the HTML
+                'longitude': '',  # Not available in the HTML
+                'address': location,
+                'contact_info': '',  # Not available in the HTML
+                'keywords_services': ', '.join(keywords_services)
+            }
+
+            data.append(post_data)
+
+        # Write the extracted data to the CSV file
+        self.write_to_csv(data)
+        
 class YelpScraper(BaseScraper):
     def __init__(self, loc: str, output: str, limit: Optional[int] = None):
         super().__init__(loc, output, limit)
